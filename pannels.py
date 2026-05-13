@@ -18,7 +18,7 @@ from solar_analytics import (
 # PAGE CONFIG
 # --------------------------------------------------
 st.set_page_config(
-    page_title="Solar Decision Engine",
+    page_title="SunWise",
     page_icon="☀️",
     layout="wide"
 )
@@ -252,7 +252,7 @@ if page == "Home":
 
     st.markdown("""
     <div class="hero">
-        <div class="main-title">Should you invest in solar panels?</div>
+        <div class="main-title">SunWise</div>
         <div class="main-subtitle">
             This application helps users make informed decisions about installing solar panels.
             By entering their personal and housing characteristics, the app will later estimate
