@@ -4,19 +4,19 @@ import pandas as pd
 import requests
 import streamlit as st
 
-
+# URL of APIs used in the app
 GEOCODING_URL = "https://geocoding-api.open-meteo.com/v1/search"
 FORECAST_URL = "https://api.open-meteo.com/v1/forecast"
 SOLAR_URL = "https://api.forecast.solar/estimate"
 
-
+# Store the results temporarily to avoid repeated API requests
 @st.cache_data(ttl=24 * 3600, show_spinner=False)
 def geocode_city(city_name: str) -> dict:
     params = {"name": city_name, "count": 1, "language": "en", "format": "json"}
     response = requests.get(GEOCODING_URL, params=params, timeout=10)
     response.raise_for_status()
     payload = response.json()
-
+# If location is not found, there will be an error
     results = payload.get("results")
     if not results:
         raise ValueError(f"No location found for '{city_name}'.")
@@ -29,7 +29,7 @@ def geocode_city(city_name: str) -> dict:
         "longitude": float(top["longitude"]),
     }
 
-
+# Store weather forecast data for 15 minutes to reduce unnecessary API requests
 @st.cache_data(ttl=15 * 60, show_spinner=False)
 def get_weather_forecast(
     latitude: float,
@@ -46,7 +46,8 @@ def get_weather_forecast(
     response = requests.get(FORECAST_URL, params=params, timeout=15)
     response.raise_for_status()
     hourly = response.json()["hourly"]
-
+    
+# Create a structured DataFrame containing hourly weather data
     weather = pd.DataFrame(
         {
             "timestamp": pd.to_datetime(hourly["time"]),
@@ -55,10 +56,11 @@ def get_weather_forecast(
             "cloud_cover_pct": hourly["cloud_cover"],
         }
     ).set_index("timestamp")
-
+    
+# Replace missing values with 0 and ensure numeric formatting
     return weather.fillna(0.0).astype(float)
 
-
+# Temporarily save solar production estimations to improve performance
 @st.cache_data(ttl=60 * 60, show_spinner=False)
 def get_solar_production(
     latitude: float,
@@ -71,7 +73,8 @@ def get_solar_production(
     response = requests.get(url, timeout=15)
     response.raise_for_status()
     daily_wh = response.json()["result"]["watt_hours_day"]
-
+    
+# Convert watt-hours into kilowatt-hours and create a DataFrame
     return pd.DataFrame(
         [
             {"date": pd.to_datetime(day), "production_kwh": wh / 1000.0}
