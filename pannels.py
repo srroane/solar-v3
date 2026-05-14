@@ -14,18 +14,18 @@ from solar_analytics import (
     predict_solar_output,
 )
 
-# --------------------------------------------------
+
 # PAGE CONFIG
-# --------------------------------------------------
+
 st.set_page_config(
     page_title="Solar Decision Engine",
     page_icon="☀️",
     layout="wide"
 )
 
-# --------------------------------------------------
-# STYLE GLOBAL
-# --------------------------------------------------
+
+# GLOBAL STYLES / COLORS
+
 st.markdown("""
 <style>
 
@@ -58,13 +58,13 @@ div[role="radiogroup"] label div {
     color: #111827 !important;
 }
 
-/* ONGLET ACTIF (FIX) */
+/* ACTIV TAB */
 div[role="radiogroup"] input:checked + div {
     background-color: #D8E2DC;  /* <-- clair au lieu de noir */
     border-radius: 12px;
 }
 
-/* TEXTE ONGLET ACTIF (FIX) */
+/* TEXT ACTIV TAB */
 div[role="radiogroup"] input:checked + div div {
     color: #111827 !important;
 }
@@ -135,7 +135,7 @@ h1, h2, h3, h4, h5, h6, p, span, label {
     color: #111827 !important;
 }
 
-/* FIX METRICS */
+/* METRICS */
 [data-testid="stMetricValue"] {
     color: #111827 !important;
 }
@@ -147,16 +147,16 @@ h1, h2, h3, h4, h5, h6, p, span, label {
 </style>
 """, unsafe_allow_html=True)
 
-# --------------------------------------------------
+
 # CONFIG
-# --------------------------------------------------
+# Main constants used across the app
 FORECAST_DAYS = 7
 BASE_KWP = 8.0
 MODEL_PATH = Path("solar_rf_model.joblib")
 
-# --------------------------------------------------
+
 # SIDEBAR INPUTS
-# --------------------------------------------------
+# Sidebar where users enter assumptions
 with st.sidebar:
     st.header("Your inputs")
 
@@ -176,15 +176,16 @@ with st.sidebar:
 
     run = st.button("Run analysis", type="primary", use_container_width=True)
 
-# --------------------------------------------------
+
 # ANALYSIS
-# --------------------------------------------------
+# Run the full analysis only when the user clicks the button
 if run:
     try:
         with st.spinner("Fetching weather, solar and running ML..."):
+# Retrieve location coordinates and weather forecast data
             location = geocode_city(city)
             weather = get_weather_forecast(location["latitude"], location["longitude"], days=FORECAST_DAYS)
-
+# Try to fetch an external solar forecast; fall back to ML if unavailable
             try:
                 solar_forecast = get_solar_production(
                     location["latitude"], location["longitude"], tilt, azimuth, kwp
@@ -192,26 +193,28 @@ if run:
             except Exception as exc:
                 solar_forecast = None
                 st.warning(f"Forecast.Solar unavailable ({exc}). Using ML only.")
-
+# Train a demo model automatically if no saved model exists
             if not MODEL_PATH.exists():
                 build_demo_model(model_path=MODEL_PATH)
-
+# Predict hourly solar production using the machine learning model
             production = predict_solar_output(weather, model_path=MODEL_PATH)
+# Adjust the prediction according to the user-selected system size
             production["solar_output_kwh"] *= kwp / BASE_KWP
-
+# Create a simplified constant hourly consumption profile
             consumption = pd.Series(annual_consumption / 8760.0, index=production.index)
-
+# Calculate savings, exported electricity, grid import and total financial value
             econ = calculate_economics(
                 production["solar_output_kwh"],
                 {"retail_rate": electricity_price, "feed_in_tariff": feed_in_tariff},
                 consumption,
             )
-
+# Extrapolate the 7-day forecast results to a yearly estimate
             scale = 365.0 / FORECAST_DAYS
+# Calculate yearly net value and payback period   
             annual_revenue = econ["total_revenue"] * scale
             annual_net = annual_revenue - maintenance_cost
             payback_years = (install_cost / annual_net) if annual_net > 0 else float("inf")
-
+# Store results in Streamlit session state so they remain available across pages
             st.session_state["results"] = {
                 "location": location,
                 "production": production,
@@ -235,9 +238,8 @@ if run:
 
 results = st.session_state.get("results")
 
-# --------------------------------------------------
-# NAVIGATION
-# --------------------------------------------------
+# NAVIGATION MENU
+
 page = st.radio(
     label="Navigation",
     options=["Home", "Financial Results", "Graphs & Recommendation"],
@@ -245,9 +247,9 @@ page = st.radio(
     label_visibility="collapsed"
 )
 
-# --------------------------------------------------
+
 # PAGE 1: HOME
-# --------------------------------------------------
+
 if page == "Home":
 
     st.markdown("""
@@ -332,9 +334,10 @@ if page == "Home":
 
     st.markdown(info_html, unsafe_allow_html=True)
 
-# --------------------------------------------------
+
 # PAGE 2: FINANCIAL RESULTS
-# --------------------------------------------------
+
+
 elif page == "Financial Results":
 
     st.title("Financial Results")
@@ -376,9 +379,10 @@ elif page == "Financial Results":
             "(scaled by 365 / 7). Real-world results vary by season."
         )
 
-# --------------------------------------------------
+
 # PAGE 3: GRAPHS & RECOMMENDATION
-# --------------------------------------------------
+
+
 elif page == "Graphs & Recommendation":
 
     st.title("Graphs and Final Recommendation")
@@ -411,6 +415,7 @@ elif page == "Graphs & Recommendation":
             st.bar_chart(results["solar_forecast"]["production_kwh"])
 
         st.subheader("Production vs. consumption (hourly, 7 days)")
+# Compare hourly production with estimated hourly consumption
         comparison = pd.DataFrame({
             "production_kwh": econ["hourly"]["production_kwh"],
             "consumption_kwh": econ["hourly"]["consumption_kwh"],
@@ -419,6 +424,7 @@ elif page == "Graphs & Recommendation":
 
         st.subheader("Recommendation")
         payback = results["payback_years"]
+# Give a recommendation based on the calculated payback period
         if payback == float("inf"):
             st.error(
                 "Under the current inputs, the system does not generate "
